@@ -56,8 +56,10 @@ pub struct ParseRangeError {
 #[derive(Debug, thiserror::Error)]
 #[error("RangeNotSatisfiable")]
 pub struct RangeNotSatisfiable {
-    /// private place holder
-    _priv: (),
+    /// the range that was checked
+    range: Range,
+    /// the length it was checked against
+    full_length: u64,
 }
 
 impl Range {
@@ -103,7 +105,10 @@ impl Range {
     /// Returns an error if the range is not satisfiable
     #[allow(clippy::range_plus_one)] // cannot be fixed
     pub fn check(&self, full_length: u64) -> Result<ops::Range<u64>, RangeNotSatisfiable> {
-        let err = || RangeNotSatisfiable { _priv: () };
+        let err = || RangeNotSatisfiable {
+            range: *self,
+            full_length,
+        };
         match *self {
             Range::Int { first, last } => {
                 if first >= full_length {
@@ -135,10 +140,14 @@ impl Range {
     }
 }
 
+/// An `InvalidRange` error naming the range and the object's size, as Amazon S3's does.
+/// S3 echoes the `Range` field verbatim; this is the range's [`Range::to_header_string`].
 impl From<RangeNotSatisfiable> for S3Error {
-    #[inline]
-    fn from(_: RangeNotSatisfiable) -> Self {
-        S3ErrorCode::InvalidRange.into()
+    fn from(e: RangeNotSatisfiable) -> Self {
+        let mut err = S3Error::new(S3ErrorCode::InvalidRange);
+        err.add_element("RangeRequested", e.range.to_header_string());
+        err.add_element("ActualObjectSize", e.full_length.to_string());
+        err
     }
 }
 
@@ -419,10 +428,17 @@ mod tests {
 
     #[test]
     fn range_not_satisfiable_to_s3_error() {
-        let err = RangeNotSatisfiable { _priv: () };
+        let err = range_int_from(100).check(10).unwrap_err();
         let s3_err: S3Error = err.into();
-        let code = s3_err.code();
-        assert_eq!(code, &S3ErrorCode::InvalidRange);
+        assert_eq!(s3_err.code(), &S3ErrorCode::InvalidRange);
+
+        let mut buf = Vec::new();
+        crate::xml::Serialize::serialize(&s3_err, &mut crate::xml::Serializer::new(&mut buf)).unwrap();
+        assert_eq!(
+            String::from_utf8(buf).unwrap(),
+            "<Error><Code>InvalidRange</Code><Message>The requested range cannot be satisfied.</Message>\
+             <RangeRequested>bytes=100-</RangeRequested><ActualObjectSize>10</ActualObjectSize></Error>"
+        );
     }
 
     #[test]

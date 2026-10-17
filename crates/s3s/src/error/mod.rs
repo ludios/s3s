@@ -35,6 +35,8 @@ pub struct S3Error(Box<Inner>);
 struct Inner {
     code: S3ErrorCode,
     message: Option<Cow<'static, str>>,
+    /// Elements written after `Message`, in order, as `(name, text)`
+    elements: Vec<(&'static str, String)>,
     // resource: Option<String>,
     request_id: Option<String>,
     status_code: Option<StatusCode>,
@@ -49,6 +51,7 @@ impl S3Error {
         Self(Box::new(Inner {
             code,
             message: message.map(Cow::Borrowed),
+            elements: Vec::new(),
             // resource: None,
             request_id: None,
             status_code: None,
@@ -88,6 +91,14 @@ impl S3Error {
 
     pub fn set_message(&mut self, val: impl Into<Cow<'static, str>>) {
         self.0.message = Some(val.into());
+    }
+
+    /// Adds an element to the error document, written after `Message` in the order added.
+    /// Amazon S3 names the subject of some errors this way, e.g. `RangeRequested` and
+    /// `ActualObjectSize` for `InvalidRange`. `name` must be an XML name other than those
+    /// of the elements written anyway (`Code`, `Message`, `RequestId`).
+    pub fn add_element(&mut self, name: &'static str, text: impl Into<String>) {
+        self.0.elements.push((name, text.into()));
     }
 
     pub fn set_request_id(&mut self, val: impl Into<String>) {
@@ -173,6 +184,9 @@ impl xml::SerializeContent for S3Error {
         if let Some(val) = self.0.message.as_deref() {
             s.content("Message", val)?;
         }
+        for (name, text) in &self.0.elements {
+            s.content(name, text.as_str())?;
+        }
         // if let Some(val) = self.0.resource.as_deref() {
         //     s.content("Resource", val)?;
         // }
@@ -201,6 +215,9 @@ impl fmt::Display for S3Error {
         d.field("code", &self.0.code);
         if let Some(ref message) = self.0.message {
             d.field("message", &message);
+        }
+        if !self.0.elements.is_empty() {
+            d.field("elements", &self.0.elements);
         }
         if let Some(ref request_id) = self.0.request_id {
             d.field("request_id", &request_id);

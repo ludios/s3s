@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### s3s
+
++ `S3Error::add_element` adds an element to the error document after `Message`, as Amazon S3 names the subject of some errors.
++ The `InvalidRange` error made from `RangeNotSatisfiable` carries `RangeRequested` and `ActualObjectSize`, as Amazon S3's does. The AWS CRT (aws-c-s3) recognizes an empty object only by `<ActualObjectSize>0</ActualObjectSize>`.
+
 [Unreleased]: https://github.com/s3s-project/s3s/compare/v0.17.0...HEAD
 
 ## [v0.17.0] - 2026-09-24

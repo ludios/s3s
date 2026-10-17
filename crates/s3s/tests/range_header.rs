@@ -289,6 +289,24 @@ async fn range_field_through_the_pipeline() {
 }
 
 #[tokio::test]
+async fn an_unsatisfiable_range_names_the_range_and_the_size() {
+    let s3 = TestS3::new();
+    let service = service(s3.clone());
+
+    let req = get("/bucket/key")
+        .header("range", "bytes=100-")
+        .body(Body::empty())
+        .expect("valid request");
+    let (status, _headers, body) = send(&service, req).await;
+
+    assert_eq!(status, StatusCode::RANGE_NOT_SATISFIABLE);
+    assert!(
+        body.contains("</Message><RangeRequested>bytes=100-</RangeRequested><ActualObjectSize>10</ActualObjectSize>"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
 async fn duplicate_range_field_lines_use_the_first_line() {
     let s3 = TestS3::new();
     let service = service(s3.clone());
