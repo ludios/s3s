@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### s3s
 
+**BREAKING**: `Range::check` rejects every range of an empty object, as Amazon S3 does; it gave `Ok(0..0)` for a suffix range.
+
 + `S3Error::add_element` adds an element to the error document after `Message`, as Amazon S3 names the subject of some errors.
 + The `InvalidRange` error made from `RangeNotSatisfiable` carries `RangeRequested` and `ActualObjectSize`, as Amazon S3's does. The AWS CRT (aws-c-s3) recognizes an empty object only by `<ActualObjectSize>0</ActualObjectSize>`.
 

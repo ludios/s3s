@@ -100,7 +100,9 @@ impl Range {
     }
 
     /// Checks if the range is satisfiable
-    ///  according to [RFC9110](https://www.rfc-editor.org/rfc/rfc9110.html#name-byte-ranges).
+    ///  according to [RFC9110](https://www.rfc-editor.org/rfc/rfc9110.html#name-byte-ranges),
+    ///  except that no range of an empty object is, as Amazon S3 answers: RFC 9110 calls a
+    ///  non-zero suffix range satisfiable there, though it selects no byte to send.
     /// # Errors
     /// Returns an error if the range is not satisfiable
     #[allow(clippy::range_plus_one)] // cannot be fixed
@@ -130,7 +132,7 @@ impl Range {
                 }
             }
             Range::Suffix { length } => {
-                if length == 0 {
+                if length == 0 || full_length == 0 {
                     return Err(err());
                 }
                 let length = length.min(full_length);
@@ -369,7 +371,8 @@ mod tests {
             (10000, range_suffix(10000), Ok(0..10000)),
             (10000, range_suffix(0), Err(())),
             (0, range_int_from(0), Err(())),
-            (0, range_suffix(1), Ok(0..0)),
+            (0, range_int_inclusive(0, 0), Err(())),
+            (0, range_suffix(1), Err(())),
             (0, range_suffix(0), Err(())),
         ];
 
